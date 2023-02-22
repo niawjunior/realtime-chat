@@ -1,34 +1,47 @@
 import React, { useState, useEffect } from "react";
-import io from "socket.io-client";
+import classNames from "classnames";
+import ChatLogin from "./ChatLogin";
 
-const socket = io("http://localhost:3000");
-
-function ChatBox({ name, onLeave }) {
+function ChatBox({ socket }) {
   const [messages, setMessages] = useState([]);
-  const [isLeft, setIsLeft] = useState(false);
+  const [name, setName] = useState("");
+  const [id, setId] = useState("");
+  const [isJoined, setIsJoined] = useState(false);
 
   useEffect(() => {
-    socket.on("chat-message", (data) => {
-      // Add the new chat message to the component state
+    function handleChatMessage(data) {
+      console.log("chat-message");
       setMessages((prevMessages) => [...prevMessages, data]);
-    });
+    }
 
-    socket.on("user-left", (name) => {
-      setMessages((messages) => [
-        ...messages,
-        { name: "", message: `${name} has left the chat.` },
-      ]);
-    });
+    function handleUserJoined(data) {
+      console.log(`user-joined ${data.name} ${data.id}`);
+      console.log("get all messages");
 
-    // Send a join event to the server with the user's name
-    socket.emit("join", name);
+      setMessages(data.messages);
+      setIsJoined(true);
+    }
+
+    function handleUpdateMessages(data) {
+      setMessages(data);
+    }
+
+    function handleRejectUser(data) {
+      alert("There is already a user with this name");
+    }
+
+    socket.on("user-joined", handleUserJoined);
+    socket.on("chat-message", handleChatMessage);
+    socket.on("update-messages", handleUpdateMessages);
+    socket.on("user-reject", handleRejectUser);
 
     return () => {
-      socket.emit("leave", name);
-      socket.disconnect();
-      setIsLeft(true);
+      socket.off("user-joined", handleUserJoined);
+      socket.off("chat-message", handleChatMessage);
+      socket.off("update-messages", handleUpdateMessages);
+      socket.off("user-reject", handleRejectUser);
     };
-  }, [name]);
+  }, []);
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -39,49 +52,71 @@ function ChatBox({ name, onLeave }) {
     }
     // Send a "chat-message" event to the server with the user's name and message
 
-    const data = { name, message };
+    const data = { id, name, message };
     socket.emit("chat-message", data);
-
-    // setMessages((messages) => [...messages, data]);
-
     input.value = "";
 
     // Clear the input field
   }
 
   function handleLeave() {
-    socket.emit("leave", name);
-    setIsLeft(true);
-    onLeave();
+    console.log("leave");
+    socket.emit("leave", { id, name });
+    setIsJoined(false);
   }
 
-  return (
+  function handleSubmitUserName(event) {
+    setName(event.target[0]?.value);
+    setId(event.target[0]?.value);
+    event.preventDefault();
+    if (!event.target[0]?.value) {
+      alert("Please enter your name");
+      return;
+    }
+
+    console.log("handleSubmitUserName");
+    // Send a "join" message to the server with the user's name
+    socket.emit("join", {
+      id: event.target[0]?.value,
+      name: event.target[0]?.value,
+    });
+    // Update the component state to indicate that the user has joined the chat
+  }
+  return !isJoined ? (
+    <div className="min-w-full flex justify-center">
+      <ChatLogin handleSubmit={handleSubmitUserName} />
+    </div>
+  ) : (
     <div className="flex flex-col h-screen w-full">
-      <div className="bg-gray-800 text-white p-4">
-        <h1 className="text-2xl font-bold">Chat Box</h1>
-        <p>Welcome, {name}!</p>
-      </div>
-      <div className="bg-gray-800 text-white p-4 flex items-center justify-between">
-        <div className="text-2xl font-bold">{name}'s Chat</div>
+      <div className="flex bg-gray-800 text-white p-4 justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Chat Box</h1>
+          <p>Welcome, {name}!</p>
+        </div>
         <button
-          className="py-2 px-4 rounded bg-red-500 hover:bg-red-600"
+          className=" py-2 px-4 rounded bg-red-500 hover:bg-red-600"
           onClick={handleLeave}
         >
           Leave
         </button>
       </div>
 
-      <div className="flex-1 p-4 overflow-y-scroll">
-        {messages.map((message, index) => (
-          <div className="flex items-start mb-2" key={index}>
+      <div className="flex-1 py-4 px-10 overflow-y-scroll">
+        {messages?.map((message, index) => (
+          <div
+            key={index}
+            className={classNames("flex", "mb-2", "message-bg", {
+              "items-center": id !== message.id,
+              "right-message": id === message.id,
+            })}
+          >
             <div className="flex-shrink-0">
-              <span className="h-8 w-8 rounded-full bg-gray-400 flex items-center justify-center font-bold text-white">
-                {message.name.substring(0, 2)}
+              <span className="message-name h-8 w-8 rounded-full bg-gray-400 flex items-center justify-center font-bold text-white">
+                {message?.name?.substring(0, 2)}
               </span>
             </div>
-            <div className="ml-3">
-              <p className="font-bold">{message.name}</p>
-              <p>{message.message}</p>
+            <div className="ml-3 message-text">
+              <p>{message?.message}</p>
             </div>
           </div>
         ))}

@@ -1,0 +1,26 @@
+.right-message {
+  max-width: 15vw !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  word-break: break-word !important;
+}
+
+.message-name {
+  border-radius: 50%;
+  color: #ffffff;
+}
+
+.message-text {
+  padding-right: 2rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 2rem;
+  border-radius: 24px;
+  background-color: #0084ff;
+  display: inline-block;
+  color: #ffffff;
+}
+
+.message-has-left {
+  background-color: #909fad !important;
+}

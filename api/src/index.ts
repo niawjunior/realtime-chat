@@ -1,14 +1,14 @@
 import express from "express";
 import http from "http";
 import cors from "cors";
-
+// const uuidv4 = require("uuid").v4;
 import { Server } from "socket.io";
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3001",
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -23,49 +23,73 @@ let messages = [];
 io.on("connection", (socket) => {
   console.log("A user connected");
 
-  socket.on("join", (name) => {
-    // Add the user to a "users" array
-    users.push({ id: socket.id, name });
+  socket.on("join", (data) => {
+    console.log(`${data.name} ${data.id} joined`);
 
-    // Broadcast a "user joined" message to all connected clients
-    io.emit("user-joined", name);
-    socket.emit("chat-messages", messages);
+    const checkUserExist = users.find((item) => item.id === data.id);
+
+    if (checkUserExist) {
+      io.emit("user-reject", data);
+      console.log("user is exist");
+    } else {
+      // Add the user to a "users" array
+      users.push({ id: data.id, name: data.name });
+      console.log(users);
+      // Broadcast a "user joined" message to all connected clients
+      io.emit("user-joined", { id: data.id, name: data.name, messages });
+      console.log("boardcast chat-messages");
+    }
   });
 
   socket.on("chat-message", (data) => {
-    console.log(data);
     // Find the user's name in the "users" array
-    const user = users.find((user) => user.id === socket.id);
-
+    console.log("chat-message");
+    console.log(data);
+    console.log(users);
+    const user = users.find((user) => user.id === data.id);
     if (user) {
       // Add the chat message to the "messages" array
-      messages.push({ name: user.name, message: data.message });
-
+      messages.push({ id: data.id, name: data.name, message: data.message });
       // Broadcast the chat message to all connected clients
-      io.emit("chat-message", { name: user.name, message: data.message });
+      console.log("emit chat-message");
+      io.emit("chat-message", {
+        id: data.id,
+        name: data.name,
+        message: data.message,
+      });
     }
   });
 
-  socket.on("leave", (name) => {
-    console.log(`User left: ${name}`);
-    const index = users.findIndex((user) => user.name === name);
-    if (index !== -1) {
-      users.splice(index, 1);
-      io.emit("user-left", name);
-    }
+  socket.on("leave", (data) => {
+    console.log(`User left: ${data.id} ${data.name}`);
+
+    users = users.filter((item) => item.id !== data.id);
+    console.log(messages);
+    const updateMessages = messages.map((item) =>
+      data.id === item.id
+        ? { ...item, message: `${data.name} has left the chat.` }
+        : item
+    );
+    messages = updateMessages;
+    console.log("updateMessages");
+    console.log(messages);
+    io.emit("update-messages", messages);
   });
 
-  socket.on("disconnect", () => {
-    console.log("A user disconnected");
+  socket.on("disconnect", (data) => {
+    console.log(`A user disconnected ${socket.id}`);
 
     // Remove the user from the "users" array
-    const index = users.findIndex((user) => user.id === socket.id);
-    if (index !== -1) {
-      const { name } = users[index];
-      users.splice(index, 1);
 
+    const findUser = users.find((item) => item.id !== socket.id);
+
+    if (findUser && findUser.name) {
+      users = users.filter((item) => item.id !== socket.id);
+      console.log(users);
       // Broadcast a "user left" message to all connected clients
-      io.emit("user-left", name);
+      io.emit("user-left", findUser.name);
+    } else {
+      console.log("guest disconnected");
     }
   });
 });
